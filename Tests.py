@@ -81,8 +81,8 @@ def test_room32X32_4(numOfAgents):
     return room32X32_4, map_cols, map_rows, numOfAgents, startpoints, goals
 
 def test_room64X64_8(numOfAgents):
-    map_rows,map_cols, room64X64 = txtfile_to_2D_map('room-64-64-8.map')
-    startpoints,goals = scan_txtfile_to_start_goal_lists('room-64-64-8.map-1.scen')
+    map_rows,map_cols, room64X64 = txtfile_to_2D_map('Maps_files/room-64-64-8.map')
+    startpoints,goals = scan_txtfile_to_start_goal_lists('Tests_files/room-64-64-8.map-1.scen')
     return room64X64, map_cols, map_rows, numOfAgents, startpoints, goals
 
 def test_radom64X64_20(numOfAgents):

@@ -1,6 +1,11 @@
 # Parent class
 import copy
 
+#Constant Variable
+INIT_MSG_TYPE = 1
+GOAL_MSG_TYPE=2
+NEW_CTNODE_MSG_TYPE=3
+
 class Msg:
     def __init__(self, type, source, destination):
         self.type = type
@@ -12,13 +17,12 @@ class Msg:
 
 
 # This class inherits type and from and to arguments from Msg class (which can work for any Msg)
-
 # Initiates a InitMsg object with path, cost parameters.
 # InitMsg type is  1
 #
 class Init_Msg(Msg):
     def __init__(self, path, cost, source, destination):
-        Msg.__init__(self, 1, source, destination)
+        Msg.__init__(self, INIT_MSG_TYPE, source, destination)
         self.path = copy.deepcopy(path)
         self.cost = cost
 
@@ -32,7 +36,7 @@ class Init_Msg(Msg):
 # InitMsg type is  3
 class NewCTNode_Msg(Msg):
     def __init__(self, CTNode, constrains, source, destination):
-        Msg.__init__(self, 3, source, destination)
+        Msg.__init__(self, NEW_CTNODE_MSG_TYPE, source, destination)
         self.CTNode = copy.deepcopy(CTNode)
         self.constrains = copy.deepcopy(constrains)
 
@@ -47,7 +51,7 @@ class NewCTNode_Msg(Msg):
 # InitMsg type is  2
 class Goal_Msg(Msg):
     def __init__(self, CTNode_Solution, solutionCost, source, destination):
-        Msg.__init__(self, 2, source, destination)
+        Msg.__init__(self, GOAL_MSG_TYPE, source, destination)
         self.CTNode_solution = copy.deepcopy(CTNode_Solution)
         self.solutionCost = solutionCost
 

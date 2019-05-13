@@ -12,6 +12,7 @@ from Conform_map import *
 from Heuristic_Dijkstra import *
 from Tests import *
 import sys
+import multiprocessing
 
 # 0 - doesn't print comments 1- print comments
 Print_flag=0
@@ -46,7 +47,6 @@ class Agent:
               'incumbentSolution:{}'
               .format(self.agent_id, self.startpoint, self.goal, self.map, self.constrains, self.openList,
                       self.incumbentSolutionCost, self.incumbentSolution))
-
 '''
 Initialization Step 1:
 Find optimal path for yourself and send Init Msgs to all the agents
@@ -99,7 +99,7 @@ def Create_CT_Root_for_agent_id(agent_id,agent):
     while msgsQueue.empty() == False:
         incoming_Init_Msg = (msgsQueue.get())[2]
         # check if : Msg is init Msg with type = 1
-        if incoming_Init_Msg.type == 1:
+        if incoming_Init_Msg.type == INIT_MSG_TYPE:
             newSolution = Solutoin(incoming_Init_Msg.source, incoming_Init_Msg.path, incoming_Init_Msg.cost)
             solutions.append(newSolution)
             totalCost = totalCost + incoming_Init_Msg.cost
@@ -151,13 +151,13 @@ def checkOpenLists(agents,M):
     return False
 
 def handleNewMsg(newmsg,agent,counters,M):
-    if newmsg.type == 2:
+    if newmsg.type == GOAL_MSG_TYPE:
         if Print_flag == 1:
             print('agent{}: start handle New Goal Msg'.format(agent.agent_id))
         handle_Goal_Msg(newmsg,agent)
         if Print_flag == 1:
             print('agent{}: finshed handle New Goal Msg'.format(agent.agent_id))
-    elif newmsg.type == 3:
+    elif newmsg.type == NEW_CTNODE_MSG_TYPE:
         if Print_flag == 1:
             print('agent{}: start handle NewCTNode_Msg'.format(agent.agent_id))
         handle_NewCTNode_Msg(newmsg,agent, M, counters)
@@ -206,7 +206,7 @@ def handle_NewCTNode_Msg(newCTNode_msg, agent, M, counters):
             agent.openList.put((new_Total_cost,counters.openListCounter, CTNodeChild))
             counters.Counter_expand_Nodes = counters.Counter_expand_Nodes + 1
             if Print_flag == 1:
-                print('new CTNode child created and addedm to openlist')
+                print('new CTNode child created and add it to openlist')
         else:
             if Print_flag == 1:
                 print('The incumbent solution cost is better than the new solution of NewCTNode_Msg, drop NewCTNode_Msg')
@@ -264,11 +264,12 @@ def create_Send_goal_msgs(new_Node, agent_id,M,counters,agent):
     if Print_flag == 1:
         print('agent{}: done handle New CT_Node'.format(agent_id))
 
+'''
+Initialization Step 1:
+Find optimal path for yourself and send Init Msgs to all the agents
+'''
 def initialization_step_1_M_agents(agents,M,counters):
-    '''
-    Initialization Step 1:
-    Find optimal path for yourself and send Init Msgs to all the agents
-    '''
+
     for i in range(M):
         check_path=initialization_step_1(agents[i],counters,M)
         if check_path ==-1:
@@ -292,78 +293,132 @@ def Create_CT_Roots_for_M_agents(agents,M,counters):
         (agents[i].openList).put((CT_Root.totalCost,counters.openListCounter,CT_Root))
 
 
-def Main_program():
-    numOfAgents=6
-    for CnumOfAgents in range(numOfAgents):
-        print('________________________{} Agents______________________________'.format(CnumOfAgents+1))
-        #Set the problem data
-        agents=[]
-        counters=Counters()
-        test_map,map_cols, map_rows, M, startpoints, goals =empty48x48(CnumOfAgents+1)
-        start = time.time()
-        # list of Priority Queues msgs
-        MsgsQueues = []
+#folder name- the name of the folder that contains tests file
+#time out- #time_out- Maximum test runtime (5 min, 300sec)
+def Main_program(folder_name,time_out):
+    #list with all the names of tests (scan) files
+    tests_files_list = os.listdir(folder_name)
+
+    #Create CSV file of all the results
+    df = Create_header()
+    df.to_csv('results.csv')
+    for i in range(len(tests_files_list)):
+        #for every test in the list read the data for this test- and run the algorithm
+        test_file = tests_files_list[i]
+        test_file_path = folder_name+'/' + test_file
+        map_name = 'Maps_files/'+test_file.split(".")[0] + '.map'
+        map_rows, map_cols, test_map = txtfile_to_2D_map(map_name)
+        startpoints, goals = scan_txtfile_to_start_goal_lists(test_file_path)
+        numOfAgents=len(tests_files_list[i])-1
+        #CnumOfAgents - current number of agents
+        for CnumOfAgents in range(numOfAgents):
+                 # Start bar as a process
+                 manager = multiprocessing.Manager()
+
+                 #run run_testOnNagents function for CnumOfAgents agents.
+                 #time out of the function 5 min.
+                 #args: CnumOfAgents - nunmber of agents
+                 #df - data frame with the header for the results CVS file
+                 #test_map - the map as 2D array with 0,1
+                 #map_cols,map_rows- the map size
+                 # startpoints, goals - arrays with [x,y] points that displayed the start and goal points of the agents in the map
+                 #map_name, test_file - names of the map and test files for the results file.
+                 p = multiprocessing.Process(target=run_testOnNagents, args=(CnumOfAgents+1, df,test_map,map_cols,map_rows,startpoints, goals,map_name,test_file))
+                 p.start()
+                 # Wait for 5 min or until process finishes
+                 p.join(time_out)
+                 # If thread is still active after time out - skip
+                 if p.is_alive():
+                     print('time out - the current test takes more than 5 min.')
+                     # Terminate
+                     p.terminate()
+                     p.join()
+                     break
+#the function run the algorithm on M agents and append the new result to the CSV file.
+def run_testOnNagents(M, df,test_map,map_cols,map_rows,startpoints, goals,map_name,test_file):
+    print('________________________{} Agents______________________________'.format(M))
+    # Set the problem data
+    agents = []
+    counters = Counters()
+    start = time.time()
+    # list of Priority Queues msgs
+    MsgsQueues = []
+    for i in range(M):
+        MsgsQueues.append(queue.PriorityQueue())
+    # initiate M agents
+    for i in range(M):
+        new_agent = Agent(i, startpoints[i], goals[i], test_map, [], math.inf, [], map_cols, map_rows, MsgsQueues)
+        agents.append(new_agent)
+        if Print_flag == 1:
+            agents[i].print_agent_attributs()
+    #Initialization Step 1:Find optimal path for yourself and send Init Msgs to all the agents
+    initialization_step_1_M_agents(agents, M, counters)
+    Create_CT_Roots_for_M_agents(agents, M, counters)
+
+    # Main Process(Agent Ai)
+    msgsQueues = checkMsgsQueues(agents[0].MsgsQueues)
+    openListsCT_nodes = checkOpenLists(agents, M)
+    while msgsQueues or openListsCT_nodes:
+        '''Handle a new CTNode from OpenSet
+        Handle Incoming Messages'''
+        counters.RoundRobin_Iterations = counters.RoundRobin_Iterations + 1
         for i in range(M):
-            MsgsQueues.append(queue.PriorityQueue())
-        #initiate M agents
-        for i in range(M):
-            new_agent=Agent(i,startpoints[i],goals[i],test_map,[],math.inf,[],map_cols,map_rows,MsgsQueues)
-            agents.append(new_agent)
             if Print_flag == 1:
-                agents[i].print_agent_attributs()
-        initialization_step_1_M_agents(agents,M,counters)
-        initialization_step_2_M_agents(agents, M)
-        Create_CT_Roots_for_M_agents(agents, M,counters)
+                print('the turn of agent{} is START'.format(agents[i].agent_id))
+            # Handle Incoming Messages
+            q = agents[i].MsgsQueues[agents[i].agent_id]
+            if q.empty() == False:
+                new_msg = q.get()
+                handleNewMsg(new_msg[2], agents[i], counters, M)
 
-        # Main Process(Agent Ai)
+            # Handle a new CTNode from OpenList
+            if (agents[i].openList).empty() == False:
+                new_Node = (agents[i].openList).get()
+                # openList is Priority Queue - it pops the lowest cost every time
+                if new_Node[0] < agents[i].incumbentSolutionCost:
+                    handleNewCT_Node(new_Node[2], agents[i], M, counters)
+                else:
+                    if Print_flag == 1:
+                        print(
+                            'all the Nodes in the open list are more expensive than incumbentSolutionCost - pop them all')
+                    while (agents[i].openList).empty() == False:
+                        (agents[i].openList).get()
+            if Print_flag == 1:
+                print('the turn of agent{} is OVER'.format(agents[i].agent_id))
+
         msgsQueues = checkMsgsQueues(agents[0].MsgsQueues)
-        openListsCT_nodes = checkOpenLists(agents,M)
-        while msgsQueues or openListsCT_nodes:
-            '''Handle a new CTNode from OpenSet
-            Handle Incoming Messages'''
-            counters.RoundRobin_Iterations = counters.RoundRobin_Iterations + 1
-            for i in range(M):
-                if Print_flag == 1:
-                    print('the turn of agent{} is START'.format(agents[i].agent_id))
-                # Handle Incoming Messages
-                q=agents[i].MsgsQueues[agents[i].agent_id]
-                if q.empty() == False:
-                    new_msg = q.get()
-                    handleNewMsg(new_msg[2], agents[i],counters,M)
+        openListsCT_nodes = checkOpenLists(agents, M)
+    end = time.time()
+    total_msgs = counters.Counter_InitMsgs + counters.Counter_GoalMsgs + counters.Counter_NewNodeMsgs
 
-                # Handle a new CTNode from OpenList
-                if (agents[i].openList).empty() == False:
-                    new_Node = (agents[i].openList).get()
-                    # openList is Priority Queue - it pops the lowest cost every time
-                    if new_Node[0] < agents[i].incumbentSolutionCost:
-                        handleNewCT_Node(new_Node[2], agents[i],M,counters)
-                    else:
-                        if Print_flag == 1:
-                            print(
-                                'all the Nodes in the open list are more expensive than incumbentSolutionCost - pop them all')
-                        while (agents[i].openList).empty() == False:
-                            (agents[i].openList).get()
-                if Print_flag == 1:
-                    print('the turn of agent{} is OVER'.format(agents[i].agent_id))
+    # ###print results to the screen##
+    number_of_agents = M
+    print('Agent{} final solution cost:{}'.format(0, agents[0].incumbentSolutionCost))
+    agents[0].incumbentSolution.print_solutions()
+    print('Msgs-Counter:')
+    print('Counter_InitMsgs:{}\nCounter_GoalMsgs:{}\nCounter_NewNodeMsgs:{}'.format(counters.Counter_InitMsgs,
+                                                                                    counters.Counter_GoalMsgs,
+                                                                                    counters.Counter_NewNodeMsgs))
+    print('Total number of Msgs:{}'.format(total_msgs))
+    print('RoundRobin_Iterations:{}\nCounter expanded Nodes:{}'.format(counters.RoundRobin_Iterations,
+                                                                       counters.Counter_expand_Nodes))
+    print('time taken: {}'.format(end - start))
 
-            msgsQueues = checkMsgsQueues(agents[0].MsgsQueues)
-            openListsCT_nodes = checkOpenLists(agents,M)
-        end = time.time()
-        total_msgs = counters.Counter_InitMsgs + counters.Counter_GoalMsgs + counters.Counter_NewNodeMsgs
-
-        # ###results##
-        print('Agent{} final solution cost:{}'.format(0, agents[0].incumbentSolutionCost))
-        agents[0].incumbentSolution.print_solutions()
-        print('Msgs-Counter:')
-        print('Counter_InitMsgs:{}\nCounter_GoalMsgs:{}\nCounter_NewNodeMsgs:{}'.format(counters.Counter_InitMsgs,counters.Counter_GoalMsgs,counters.Counter_NewNodeMsgs))
-        print('Total number of Msgs:{}'.format(total_msgs))
-        print('RoundRobin_Iterations:{}\nCounter expanded Nodes:{}'.format(counters.RoundRobin_Iterations,counters.Counter_expand_Nodes))
-        print('time taken: {}'.format(end - start))
-    # df=add_new_result_to_cvs('empty-8-8.map-1.scen','empty-8-8',M,agents[0].incumbentSolutionCost,end - start,counters.Counter_InitMsgs,counters.Counter_NewNodeMsgs,counters.Counter_GoalMsgs,total_msgs,counters.Counter_expand_Nodes,counters.RoundRobin_Iterations)
-    # new_line(df)
-
-
+    # ###append new result to CSV file ##
+    df = add_new_result_to_existing_df(df,test_file,map_name, number_of_agents,
+                                         agents[0].incumbentSolutionCost, end - start, counters.Counter_InitMsgs,
+                                         counters.Counter_NewNodeMsgs, counters.Counter_GoalMsgs, total_msgs,
+                                         counters.Counter_expand_Nodes, counters.RoundRobin_Iterations)
+    with open('results.csv', 'a',newline='') as f:
+        df.to_csv(f, header=False)
 
 if __name__ == "__main__":
     # execute only if run as a script
-    Main_program()
+    #time_out- Maximum test runtime (5 min, 300sec)
+    time_out=300
+    tests_folder_name='empty-48-48_tests'
+    Main_program(tests_folder_name,time_out)
+
+
+
+

@@ -1,6 +1,7 @@
 import pdb
 import pandas as pd
-
+import csv
+import os
 '''
 This file contain fuction that handle with write and read from files - maps, scen fils. 
 '''
@@ -44,44 +45,21 @@ def scan_txtfile_to_start_goal_lists(fname):
             goals.append([int(curruntline[7]),int(curruntline[6])])
     return starts,goals
 
-#the function create excel file with the head of the results file
-def create_head_frame_results_to_cvs():
-    Result = {'File': [],
-              'Map': [],
-              'Number of Agents': [],
-              'Cost': [],
-              'time': [],
-              'init_msgs': [],
-              'CT_Node_msgs': [],
-              'Goal Msgs': [],
-              'total_msgs': [],
-              'expanded_nodes': [],
-              'roundRobinIteration': []
-              }
-    df = pd.DataFrame(Result, columns=['File', 'Map', 'Number of Agents', 'Cost', 'time', 'init_msgs', 'CT_Node_msgs',
-                                       'Goal Msgs', 'total_msgs', 'expanded_nodes', 'roundRobinIteration'])
-    df.to_excel('results.xlsx')
 
-#the function gets all the new result parameters and return data frame that contain them.
-def add_new_result_to_cvs(fname_test,fname_map,numberOfAgents,cost,time,init_msgs,CT_Node_msgs,goal_msgs,total_msgs,expanded_nodes,roundRobinIteration):
+
+def add_new_result_to_existing_df(df,fname_test,fname_map,numberOfAgents,cost,time,init_msgs,CT_Node_msgs,goal_msgs,total_msgs,expanded_nodes,roundRobinIteration):
+    new_result = [fname_test,fname_map,numberOfAgents,cost,time,init_msgs,CT_Node_msgs,goal_msgs,total_msgs,expanded_nodes,roundRobinIteration]
+    df.loc[len(df)]=new_result
+    return df
+
+def Create_header():
     #create_head_frame_results_to_cvs()
-    df2 = pd.DataFrame({'File': [fname_test],
-    'Map': [fname_map],
-    'Number of Agents': [numberOfAgents],
-    'Cost': [cost],
-    'time': [time],
-    'init_msgs': [init_msgs],
-    'CT_Node_msgs': [CT_Node_msgs],
-    'Goal Msgs': [goal_msgs],
-    'total_msgs': [total_msgs],
-    'expanded_nodes': [expanded_nodes],'roundRobinIteration': [roundRobinIteration]})
-    return df2
+    df = pd.DataFrame(columns=['testfile','Map','Number of Agents','Cost','Time','init_msgs','CT_Node_msgs','Goal Msgs','total_msgs','expanded_nodes','roundRobinIteration'])
+    return df
 
-#the function gets a new frame and append it to the resuls excel file.
-def new_line(df):
-    writer = pd.ExcelWriter('Results9.xlsx')
-    df.to_excel(writer, 'Sheet1',index=False)
-    writer.save()
+
+
+
 
 
 
